@@ -5,36 +5,35 @@ import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Icon } from '@/components/ui/icon';
-import {
-  CATEGORY_OPTIONS,
-  COLOR_OPTIONS,
-  SEASON_OPTIONS,
-  type ItemCategory,
-  type ItemColor,
-  type ItemSeason,
-} from '@/components/items/options';
-import { ColorSelectRow, SingleSelectRow } from '@/components/items/single-select-row';
+import { SingleSelectRow } from '@/components/items/single-select-row';
+import { ColorSelectRow } from '@/components/items/color-select-row';
 import { useUser } from '@clerk/clerk-expo';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as React from 'react';
-import { Image, Platform, ScrollView, View } from 'react-native';
+import { Image, Platform, ScrollView, View, KeyboardAvoidingView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { uploadAsync as uploadFileAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { Camera, Trash2 } from 'lucide-react-native';
+import { CATEGORY_OPTIONS, COLOR_OPTIONS, SEASON_OPTIONS } from '@/components/items/options';
 
-type InsertItemInput = {
-  category?: ItemCategory;
-  brand?: string;
-  season?: ItemSeason;
-  color?: ItemColor;
-  image?: string;
-  size?: string;
-};
+import type { Doc } from '@/convex/_generated/dataModel';
 
-export function AddItemForm() {
+type InsertItemInput = Partial<Omit<Doc<'items'>, 'user_id' | '_id' | '_creationTime'>>;
+type ItemDoc = Doc<'items'>;
+type ItemCategory = NonNullable<ItemDoc['category']>;
+
+export function AddItemForm({ itemId }: { itemId?: Id<'items'> }) {
   const { user, isLoaded } = useUser();
+  const params = useLocalSearchParams<{ category?: string }>();
+  const urlCategory = React.useMemo<ItemCategory | null>(() => {
+    const allowed = new Set(CATEGORY_OPTIONS.map((o) => o.value));
+    const v = (params.category || '').toString();
+    return allowed.has(v as ItemCategory) ? (v as ItemCategory) : null;
+  }, [params.category]);
   const [form, setForm] = React.useState<InsertItemInput>({});
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -45,6 +44,37 @@ export function AddItemForm() {
   const [imageMimeType, setImageMimeType] = React.useState<string>('image/jpeg');
   const generateUploadUrl = useMutation(api.items.generateUploadUrl);
   const addItem = useMutation(api.items.add);
+  const updateItem = useMutation(api.items.update);
+
+  const isEditMode = !!itemId;
+  const existing = useQuery(
+    api.items.getByIdWithUrl as any,
+    itemId ? ({ id: itemId } as any) : 'skip'
+  ) as (Doc<'items'> & { _id: Id<'items'>; url?: string | null }) | undefined | null;
+
+  React.useEffect(() => {
+    if (!isEditMode || !existing) return;
+    setForm({
+      category: existing.category,
+      brand: existing.brand,
+      season: existing.season,
+      color: existing.color,
+      image: existing.image,
+      size: existing.size,
+    });
+    if (existing.url) setImagePreviewUri(existing.url);
+  }, [isEditMode, existing?._id]);
+
+  // Prefill category from URL when creating a new item
+  React.useEffect(() => {
+    if (isEditMode) return;
+    if (urlCategory && !form.category) {
+      setForm((prev) => ({ ...prev, category: urlCategory }));
+    }
+  }, [isEditMode, urlCategory, form.category]);
+
+  // Centralized crop aspect for easy customization
+  const CROP_ASPECT: [number, number] = [1, 1];
 
   function updateField<Key extends keyof InsertItemInput>(key: Key, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -70,7 +100,8 @@ export function AddItemForm() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         base64: true,
-        allowsEditing: false,
+        allowsEditing: true,
+        aspect: CROP_ASPECT,
         quality: 0.9,
       });
 
@@ -98,7 +129,8 @@ export function AddItemForm() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         base64: true,
-        allowsEditing: false,
+        allowsEditing: true,
+        aspect: CROP_ASPECT,
         quality: 0.9,
       });
 
@@ -131,23 +163,61 @@ export function AddItemForm() {
     const uploadUrl = await generateUploadUrl();
     const ext = inferExtensionFromMime(imageMimeType);
     const fileName = `item_${Date.now()}.${ext}`;
-    const form = new FormData();
-    form.append('file', {
-      uri: imagePreviewUri,
-      name: fileName,
-      type: imageMimeType,
-    } as any);
-    const res = await fetch(uploadUrl, { method: 'POST', body: form as any });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || 'Upload failed');
+
+    if (Platform.OS === 'web') {
+      let blob: Blob;
+      try {
+        const resp = await fetch(imagePreviewUri);
+        blob = await resp.blob();
+      } catch (_e) {
+        if (imageBase64) {
+          const byteChars = atob(imageBase64);
+          const byteNumbers = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+          const byteArray = new Uint8Array(byteNumbers);
+          blob = new Blob([byteArray], { type: imageMimeType });
+        } else {
+          throw new Error('Could not read image data');
+        }
+      }
+
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': imageMimeType,
+          'Content-Disposition': `inline; filename="${fileName}"`,
+        },
+        body: blob,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Upload failed');
+      }
+      const { storageId } = (await res.json()) as { storageId: Id<'_storage'> };
+      return storageId;
     }
-    const { storageId } = (await res.json()) as { storageId: Id<'_storage'> };
+
+    const result = await uploadFileAsync(uploadUrl, imagePreviewUri, {
+      httpMethod: 'POST',
+      headers: {
+        'Content-Type': imageMimeType,
+        'Content-Disposition': `inline; filename="${fileName}"`,
+      },
+      uploadType: FileSystemUploadType.BINARY_CONTENT,
+    });
+    if (result.status !== 200) {
+      throw new Error(result.body || 'Upload failed');
+    }
+    const { storageId } = JSON.parse(result.body) as { storageId: Id<'_storage'> };
     return storageId;
   }
 
   async function onSubmit() {
     if (!isLoaded || !user) return;
+    if (!form.category) {
+      setError('Please select a category');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -156,14 +226,26 @@ export function AddItemForm() {
         storageId = await uploadImageIfNeeded();
       }
 
-      await addItem({
-        category: form.category || undefined,
-        brand: form.brand || undefined,
-        season: form.season || undefined,
-        color: form.color || undefined,
-        image: storageId || undefined,
-        size: form.size || undefined,
-      });
+      if (isEditMode && itemId) {
+        await updateItem({
+          id: itemId,
+          category: form.category || undefined,
+          brand: form.brand || undefined,
+          season: form.season || undefined,
+          color: form.color || undefined,
+          image: storageId || undefined,
+          size: form.size || undefined,
+        } as any);
+      } else {
+        await addItem({
+          category: form.category || undefined,
+          brand: form.brand || undefined,
+          season: form.season || undefined,
+          color: form.color || undefined,
+          image: storageId || undefined,
+          size: form.size || undefined,
+        });
+      }
 
       router.back();
     } catch (e) {
@@ -189,7 +271,7 @@ export function AddItemForm() {
               <View className="gap-6">
                 <View className="items-center gap-3 px-6">
                   <View className="w-48">
-                    <AspectRatio>
+                    <AspectRatio ratio={1}>
                       {imagePreviewUri ? (
                         <Image
                           source={{ uri: imagePreviewUri }}
@@ -230,7 +312,9 @@ export function AddItemForm() {
                 <View className="gap-1.5 px-6">
                   <Label htmlFor="brand">Brand</Label>
                   <Input
+                    key={`brand-${existing?._id ?? 'new'}`}
                     id="brand"
+                    value={form.brand ?? ''}
                     onChangeText={(v) => updateField('brand', v)}
                     returnKeyType="next"
                   />
@@ -254,7 +338,9 @@ export function AddItemForm() {
                 <View className="gap-1.5 px-6">
                   <Label htmlFor="size">Size</Label>
                   <Input
+                    key={`size-${existing?._id ?? 'new'}`}
                     id="size"
+                    value={form.size ?? ''}
                     onChangeText={(v) => updateField('size', v)}
                     returnKeyType="next"
                   />
@@ -270,24 +356,44 @@ export function AddItemForm() {
           </Card>
         </ScrollView>
       </View>
-      <View className="border-t border-border bg-background px-4 py-4">
-        <View className="flex-row items-center gap-3">
-          <Button
-            variant="outline"
-            disabled={submitting}
-            onPress={async () => {
-              setImagePreviewUri(null);
-              setImageBase64(null);
-              setForm((prev) => ({ ...prev, image: undefined }));
-              router.back();
-            }}>
-            <Icon as={Trash2} size={16} />
-          </Button>
-          <Button className="flex-1" disabled={submitting || !isLoaded} onPress={onSubmit}>
-            <Text>{submitting ? 'Saving...' : 'Save item'}</Text>
-          </Button>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+        <View className="border-t border-border bg-background px-4 py-4">
+          <View className="flex-row items-center gap-3">
+            <Button
+              variant="outline"
+              disabled={submitting}
+              onPress={async () => {
+                setImagePreviewUri(null);
+                setImageBase64(null);
+                setForm((prev) => ({ ...prev, image: undefined }));
+                router.back();
+              }}>
+              <Icon as={Trash2} size={16} />
+            </Button>
+            {isEditMode ? (
+              <Button variant="outline" disabled={submitting} onPress={() => router.back()}>
+                <Text>Cancel</Text>
+              </Button>
+            ) : null}
+            <Button
+              className="flex-1"
+              disabled={submitting || !isLoaded || !form.category}
+              onPress={onSubmit}>
+              <Text>
+                {submitting
+                  ? isEditMode
+                    ? 'Updating...'
+                    : 'Saving...'
+                  : isEditMode
+                    ? 'Update item'
+                    : 'Save item'}
+              </Text>
+            </Button>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

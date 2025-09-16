@@ -5,11 +5,10 @@ export default defineSchema({
   items: defineTable({
     category: v.optional(
       v.union(
-        v.literal("jackets"),
+        v.literal("accessories"),
         v.literal("tops"),
         v.literal("bottoms"),
-        v.literal("shoes"),
-        v.literal("accessories")
+        v.literal("shoes")
       )
     ),
     brand: v.optional(v.string()),
@@ -45,4 +44,12 @@ export default defineSchema({
   })
   .index("by_user", ["user_id"])
   .index("by_user_category", ["user_id", "category"]),
+
+  currentItems: defineTable({
+    user_id: v.string(),
+    accessories: v.optional(v.id("items")),
+    tops: v.optional(v.id("items")),
+    bottoms: v.optional(v.id("items")),
+    shoes: v.optional(v.id("items")),
+  }).index("by_user", ["user_id"]),
 });

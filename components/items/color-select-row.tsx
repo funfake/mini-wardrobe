@@ -1,31 +1,32 @@
-import { Button, type ButtonProps } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react-native';
-import * as React from 'react';
-import { ScrollView, View, type ViewProps } from 'react-native';
-import { useColorScheme } from 'nativewind';
-import { THEME } from '@/lib/theme';
+import { View, type ViewProps } from 'react-native';
+import { ScrollView } from 'react-native';
 
-type SingleSelectRowProps<T extends string> = {
+type ColorDotProps = { className?: string } & Omit<ViewProps, 'children'>;
+
+export function ColorDot({ className, ...props }: ColorDotProps) {
+  return <View className={cn('size-3 rounded-full border border-border', className)} {...props} />;
+}
+
+type ColorSelectRowProps<T extends string> = {
   label?: string;
-  options: Array<{ value: T; label: string; icon?: LucideIcon; className?: string }>;
+  options: Array<{ value: T; label: string; className?: string }>;
   value?: T | null;
   leftPadding?: boolean;
   onChange: (value: T) => void;
   onClear?: () => void;
 };
 
-export function SingleSelectRow<T extends string>({
+export function ColorSelectRow<T extends string>({
   label,
   options,
   value,
   leftPadding = true,
   onChange,
   onClear,
-}: SingleSelectRowProps<T>) {
-  const { colorScheme } = useColorScheme();
-  const palette = THEME[(colorScheme ?? 'light') as 'light' | 'dark'];
+}: ColorSelectRowProps<T>) {
   return (
     <View className="gap-1.5">
       {label ? (
@@ -39,7 +40,6 @@ export function SingleSelectRow<T extends string>({
         contentContainerStyle={{ gap: 8, paddingLeft: leftPadding ? 24 : 0 }}>
         {options.map((opt) => {
           const isSelected = value === opt.value;
-          const Icon = opt.icon;
           return (
             <Button
               key={opt.value}
@@ -54,12 +54,7 @@ export function SingleSelectRow<T extends string>({
                 }
               }}>
               <View className="flex-row items-center gap-2">
-                {Icon ? (
-                  <Icon
-                    size={16}
-                    color={isSelected ? palette.foreground : palette.mutedForeground}
-                  />
-                ) : null}
+                <View className={cn('size-4 rounded-full border border-border', opt.className)} />
                 <Text className="text-sm">{opt.label}</Text>
               </View>
             </Button>

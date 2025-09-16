@@ -27,11 +27,10 @@ export type Option<T extends string> = {
 };
 
 export const CATEGORY_OPTIONS: Option<ItemCategory>[] = [
-  { value: 'jackets', label: 'Jackets', icon: CloudRainWind },
+  { value: 'accessories', label: 'Accessories', icon: HandCoins },
   { value: 'tops', label: 'Tops', icon: Shirt },
   { value: 'bottoms', label: 'Bottoms', icon: BetweenVerticalStart },
   { value: 'shoes', label: 'Shoes', icon: Footprints },
-  { value: 'accessories', label: 'Accessories', icon: HandCoins },
 ];
 
 export const SEASON_OPTIONS: Option<ItemSeason>[] = [

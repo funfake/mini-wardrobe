@@ -5,7 +5,7 @@ import * as AuthSession from 'expo-auth-session';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useColorScheme } from 'nativewind';
-import * as React from 'react';
+import { useEffect } from 'react';
 import { Image, Platform, View, type ImageSourcePropType } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -73,14 +73,13 @@ export function SocialConnections() {
   }
 
   return (
-    <View className="gap-2 sm:flex-row sm:gap-3">
+    <View className="flex-row items-center gap-3">
       {SOCIAL_CONNECTION_STRATEGIES.map((strategy) => {
         return (
           <Button
             key={strategy.type}
             variant="outline"
-            size="sm"
-            className="sm:flex-1"
+            className="flex-1"
             onPress={onSocialLoginPress(strategy.type)}>
             <Image
               className={cn('size-4', strategy.useTint && Platform.select({ web: 'dark:invert' }))}
@@ -99,7 +98,7 @@ export function SocialConnections() {
 const useWarmUpBrowser = Platform.select({
   web: () => {},
   default: () => {
-    React.useEffect(() => {
+    useEffect(() => {
       // Preloads the browser for Android devices to reduce authentication load time
       // See: https://docs.expo.dev/guides/authentication/#improving-user-experience
       void WebBrowser.warmUpAsync();
