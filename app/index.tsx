@@ -11,6 +11,7 @@ import { Icon } from '@/components/ui/icon';
 import { Camera, Grip, Shuffle } from 'lucide-react-native';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { BottomBarLayout } from '@/components/bottom-bar-layout';
 
 const SCREEN_OPTIONS = {
   header: () => (
@@ -31,16 +32,14 @@ export default function Screen() {
   return (
     <>
       <Stack.Screen options={SCREEN_OPTIONS} />
-      <View className="py-safe flex-1" /* pb-safe ensures safe area bottom padding */>
-        <View className="flex-1 items-center justify-center">
-          <CurrentOutfit />
-        </View>
-        <View className="border-t border-border bg-background px-4 py-4">
-          <View className="flex-row items-center gap-3">
+      <BottomBarLayout
+        variant="buttons"
+        topSafe
+        buttons={
+          <>
             <Link href="/items/wardrobe" asChild>
               <Button variant="outline">
                 <Icon as={Grip} size={16} />
-                {/* <Text>View all</Text> */}
               </Button>
             </Link>
             <Button variant="outline" onPress={() => void randomize({})}>
@@ -52,9 +51,12 @@ export default function Screen() {
                 <Text>Add item</Text>
               </Button>
             </Link>
-          </View>
+          </>
+        }>
+        <View className="flex-1 items-center justify-center">
+          <CurrentOutfit />
         </View>
-      </View>
+      </BottomBarLayout>
     </>
   );
 }

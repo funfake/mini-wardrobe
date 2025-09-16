@@ -13,12 +13,13 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as React from 'react';
-import { Image, Platform, ScrollView, View, KeyboardAvoidingView } from 'react-native';
+import { Image, Platform, ScrollView, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { uploadAsync as uploadFileAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { Camera, Trash2 } from 'lucide-react-native';
 import { CATEGORY_OPTIONS, COLOR_OPTIONS, SEASON_OPTIONS } from '@/components/items/options';
+import { BottomBarLayout } from '@/components/bottom-bar-layout';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -256,7 +257,42 @@ export function AddItemForm({ itemId }: { itemId?: Id<'items'> }) {
   }
 
   return (
-    <View className="pb-safe flex-1" /* pb-safe ensures safe area bottom padding */>
+    <BottomBarLayout
+      variant="buttons"
+      buttons={
+        <>
+          <Button
+            variant="outline"
+            disabled={submitting}
+            onPress={async () => {
+              setImagePreviewUri(null);
+              setImageBase64(null);
+              setForm((prev) => ({ ...prev, image: undefined }));
+              router.back();
+            }}>
+            <Icon as={Trash2} size={16} />
+          </Button>
+          {isEditMode ? (
+            <Button variant="outline" disabled={submitting} onPress={() => router.back()}>
+              <Text>Cancel</Text>
+            </Button>
+          ) : null}
+          <Button
+            className="flex-1"
+            disabled={submitting || !isLoaded || !form.category}
+            onPress={onSubmit}>
+            <Text>
+              {submitting
+                ? isEditMode
+                  ? 'Updating...'
+                  : 'Saving...'
+                : isEditMode
+                  ? 'Update item'
+                  : 'Save item'}
+            </Text>
+          </Button>
+        </>
+      }>
       <View className="flex-1">
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
           <Card className="border-border/0 shadow-none sm:border-border sm:shadow-sm sm:shadow-black/5">
@@ -356,44 +392,6 @@ export function AddItemForm({ itemId }: { itemId?: Id<'items'> }) {
           </Card>
         </ScrollView>
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-        <View className="border-t border-border bg-background px-4 py-4">
-          <View className="flex-row items-center gap-3">
-            <Button
-              variant="outline"
-              disabled={submitting}
-              onPress={async () => {
-                setImagePreviewUri(null);
-                setImageBase64(null);
-                setForm((prev) => ({ ...prev, image: undefined }));
-                router.back();
-              }}>
-              <Icon as={Trash2} size={16} />
-            </Button>
-            {isEditMode ? (
-              <Button variant="outline" disabled={submitting} onPress={() => router.back()}>
-                <Text>Cancel</Text>
-              </Button>
-            ) : null}
-            <Button
-              className="flex-1"
-              disabled={submitting || !isLoaded || !form.category}
-              onPress={onSubmit}>
-              <Text>
-                {submitting
-                  ? isEditMode
-                    ? 'Updating...'
-                    : 'Saving...'
-                  : isEditMode
-                    ? 'Update item'
-                    : 'Save item'}
-              </Text>
-            </Button>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+    </BottomBarLayout>
   );
 }

@@ -5,8 +5,8 @@ import { View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { WardrobeGrid } from '@/components/items/wardrobe-grid';
-import { WardrobeFiltersBar, type WardrobeFilters } from '@/components/items/wardrobe-filters';
-import { SelectionBar } from '@/components/items/selection-bar';
+import { type WardrobeFilters } from '@/components/items/wardrobe-filters';
+import { BottomBarLayout } from '@/components/bottom-bar-layout';
 import type { Id } from '@/convex/_generated/dataModel';
 
 export default function WardrobeScreen() {
@@ -49,39 +49,46 @@ export default function WardrobeScreen() {
           headerShadowVisible: false,
         }}
       />
-      <View className="py-safe flex-1">
-        <View className="flex-1">
-          {items === undefined ? (
-            <View className="flex-1 items-center justify-center">
-              <Text className="text-muted-foreground">Loading...</Text>
-            </View>
-          ) : (
-            <WardrobeGrid items={(items as any) ?? []} onPressItem={(id) => setSelectedId(id)} />
-          )}
-        </View>
-        {selectedItem ? (
-          <SelectionBar
-            selected={selectedItem as any}
-            hidePrimary
-            onClear={() => setSelectedId(null)}
-            onEdit={() => {
+      {selectedItem ? (
+        <BottomBarLayout
+          variant="selection"
+          selectionProps={{
+            selected: selectedItem as any,
+            hidePrimary: true,
+            onClear: () => setSelectedId(null),
+            onEdit: () => {
               if (!selectedId) return;
               router.push(`/items/edit/${selectedId}`);
-            }}
-            onDelete={async () => {
+            },
+            onDelete: async () => {
               if (!selectedId) return;
               await remove({ id: selectedId });
               setSelectedId(null);
-            }}
-          />
-        ) : (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-            <WardrobeFiltersBar value={filters} onChange={setFilters} />
-          </KeyboardAvoidingView>
-        )}
-      </View>
+            },
+          }}>
+          <View className="flex-1">
+            {items === undefined ? (
+              <View className="flex-1 items-center justify-center">
+                <Text className="text-muted-foreground">Loading...</Text>
+              </View>
+            ) : (
+              <WardrobeGrid items={(items as any) ?? []} onPressItem={(id) => setSelectedId(id)} />
+            )}
+          </View>
+        </BottomBarLayout>
+      ) : (
+        <BottomBarLayout variant="filters" filtersProps={{ value: filters, onChange: setFilters }}>
+          <View className="flex-1">
+            {items === undefined ? (
+              <View className="flex-1 items-center justify-center">
+                <Text className="text-muted-foreground">Loading...</Text>
+              </View>
+            ) : (
+              <WardrobeGrid items={(items as any) ?? []} onPressItem={(id) => setSelectedId(id)} />
+            )}
+          </View>
+        </BottomBarLayout>
+      )}
     </>
   );
 }
